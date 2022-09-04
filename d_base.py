@@ -2,86 +2,92 @@
 # IMPORT MODULE
 # --------------------------------------------------------------------------------------------------
 
-import sqlite3
-from sqlite3 import Error
+from peewee import *
 import re
+from decorators import *
+from observer import Subject
 from tabulate import tabulate
+
 
 # --------------------------------------------------------------------------------------------------
 # CLASS DECLARATION 
 # --------------------------------------------------------------------------------------------------
 
+# The db object will be used to manage the connections to the Sqlite database
+db = SqliteDatabase("base.db")
 
-class DataBase():
+class BaseModel(Model):
+    class Meta:
+        database = db
+
+class ClimbingSchools(BaseModel):
+    """
+    \nThis class defines the
+    \ndatabase attributes.
+    """
+    name = CharField(unique = True)
+    country = TextField()
+    town = TextField()
+    rock_type = TextField()
+
+    #Method str of python
+    def __str__(self):
+        return "The name of the park is: " + self.name
+
+class DataBase(Subject):
     """
     \nThis class is used to define all methods
-    \nthat work with Sqlite3.
+    \nthat work with the database.
     """
+
+    #Constructor method
+    def __init__(self):
+        db.connect()
+        db.create_tables([ClimbingSchools])
+        db.close()
 
     #Method to create connection and database        
     def connect_db(self):
         try:
-            self.connection = sqlite3.connect('base.db')
+            self.connection = db.connect
             print("\nSuccessful connection")
             return self.connection
         except:
-            Error
+            print("Connection not available")
 
-    #Method to create table        
+    #Method to create table
     def create_table(self):
         try:
-            self.connection
-            create_cursor = self.connection.cursor()
-            create_cursor.execute(
-                """CREATE TABLE IF NOT EXISTS parques_de_escalada 
-                (Id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                Name text unique NOT NULL, Country text NOT NULL, 
-                Town text NOT NULL, Rock_type text NOT NULL)"""
-            )
-            self.connection.commit()
+            self.create_table = db.create_tables(ClimbingSchools)
             print("\nTable created successfully")
+            return self.create_table
         except:
             print("Table can not be created. Please create connection")
 
-    #Method to show table's name
-    def show_name(self):
-        self.connection
-        create_cursor = self.connection.cursor()
-        create_cursor.execute(
-            """SELECT name FROM sqlite_master 
-            WHERE type = 'table' AND name = 'parques_de_escalada'"""
-        )
-        print("\n", create_cursor.fetchall())
-
     #Method to show all records on table
     def show_table(self):
-        try:
-            self.connection
-            create_cursor = self.connection.cursor()
-            create_cursor.execute("SELECT * FROM parques_de_escalada;")
-            records = create_cursor.fetchall()
-            DataBase.show_name(self)
-            print(
-                "\n", tabulate(
-                    records, headers=["Id", "Name", "Country", "Town", "Rock type"])
-            )   
-            print("\nNumber of records: ", len(records))
-        except:
-            print("Table does not exists. Please create a table")
+        headers = ["Id", "Name", "Country", "Town", "Rock_type", "Str method"] 
+        values = []  
 
-    #Method to delete tables
-    def delete_table(self):
         try:
-            self.connection
-            create_cursor = self.connection.cursor()
-            create_cursor.execute("DROP TABLE IF EXISTS parques_de_escalada")
-            self.connection.commit()
-            print("\nTable deleted")
+            for record in ClimbingSchools.select():  
+                col1 = record.id 
+                col2 = record.name 
+                col3 = record.country 
+                col4 = record.town 
+                col5 = record.rock_type
+                col6 = record   # This call the str method of Python
+                column = col1, col2, col3, col4, col5, col6 
+                values.append(column)    
+            print(tabulate(values, headers, tablefmt="github"))  
+            print("\nNumber of records: ", ClimbingSchools.select().count())
         except:
             print("Table does not exists. Please create a table")
 
     #Method to insert records
-    def insert_records(self):
+    @decorator_log
+    def insert_records(self, r1):
+        table = ClimbingSchools()
         text_1 = "Validated string: {}"
         text_2 = "Invalid string: {}"
         r1 = input("\nInsert name:").capitalize()
@@ -89,42 +95,39 @@ class DataBase():
         r3 = input("Insert town:").capitalize()
         r4 = input("Insert rock type:").capitalize()
         patron = "^[A-Za-z]+(?i:[ _-][A-Za-z]+)*$"
-        
+
         try:
-            self.connection
             if(re.match(patron, r1)):
+                print("-" * 100)
                 print("\n", text_1.format(r1))
-                sql = (
-                    """INSERT INTO parques_de_escalada
-                    (Name, Country, Town, Rock_type) VALUES(?, ?, ?, ?)"""
-                )
-                data = (r1, r2, r3, r4)
-                create_cursor = self.connection.cursor()
-                create_cursor.execute(sql, data)
-                self.connection.commit()
-                print("\nNumber of records entered: ", create_cursor.rowcount) 
+                table.name = r1
+                table.country = r2
+                table.town = r3
+                table.rock_type = r4
+                table.save()
+                self.notify(r1) #This is the observer
+                print("\nNumber of records entered: ", table.save())   
             else:
                 print("\n", text_2.format(r1))
                 print("\nThe record could not be entered. Please try again")
         except:
-            print("Table not available. Please create table")    
-
+            print("Table not available. Please create table")
+    
     #Method to delete records
-    def delete_records(self):
-        try:
-            self.connection
-            text_1 = "Validated id: {}"
-            text_2 = "Invalid id: {}"
-            r0 = input("\nInsert id number:")
-            pattern = "[0-9]"
+    @decorator_log
+    def delete_records(self, r0):
+        table = ClimbingSchools()
+        text_1 = "Validated id: {}"
+        text_2 = "Invalid id: {}"
+        r0 = input("\nInsert id number:")
+        pattern = "[0-9]"
 
+        try:
             if(re.match(pattern, r0)):
+                print("-" * 100)
                 print("\n", text_1.format(r0))
-                sql = ("DELETE from parques_de_escalada where id = ?")
-                data = (r0)
-                create_cursor = self.connection.cursor()
-                create_cursor.execute(sql, data)
-                self.connection.commit()
+                table = ClimbingSchools.get(ClimbingSchools.id == r0)
+                table.delete_instance()   
                 print("\nThe record has been deleted")
             else:
                 print(text_2.format(r0))
@@ -133,29 +136,29 @@ class DataBase():
             print("Table not available. Please create table")
 
     #Method to update records
-    def update_records(self):
-        try:
-            self.connection
-            text_1 = "Validated string: {}"
-            text_2 = "Invalid string: {}"
-            r0 = input("\nInsert id number:")
-            r1 = input("\nInsert name update:").capitalize()
-            r2 = input("Insert country update:").capitalize()
-            r3 = input("Insert town update:").capitalize()
-            r4 = input("Insert rock type update:").capitalize()
-            pattern = "^[A-Za-z]+(?i:[ _-][A-Za-z]+)*$"
+    @decorator_log
+    def update_records(self, r0):
+        text_1 = "Validated string: {}"
+        text_2 = "Invalid string: {}"
+        r0 = input("\nInsert id number:")
+        r1 = input("\nInsert update name:").capitalize()
+        r2 = input("Insert update country:").capitalize()
+        r3 = input("Insert update town:").capitalize()
+        r4 = input("Insert update rock type:").capitalize()
+        pattern = "^[A-Za-z]+(?i:[ _-][A-Za-z]+)*$"
 
+        try:
             if(re.match(pattern, r1)):
+                print("-" * 100)
                 print("\n", text_1.format(r1))
-                sql = (
-                    """UPDATE parques_de_escalada SET 
-                    Name = ?, Country = ?, Town = ?, Rock_type = ? where id = ?"""
-                )
-                data = (r1, r2, r3, r4, r0)
-                create_cursor = self.connection.cursor()
-                create_cursor.execute(sql, data)
-                self.connection.commit()
-                print("\nNumber of records updated: ", create_cursor.rowcount) 
+                update = ClimbingSchools.update(
+                    name = r1, 
+                    country = r2,
+                    town = r3,
+                    rock_type = r4 
+                    ).where(ClimbingSchools.id == r0)
+                update.execute()
+                print("\nRecord has been updated") 
             else:
                 print(text_2.format(r1))
                 print("\nThe record could not be updated. Please try again")
@@ -163,30 +166,35 @@ class DataBase():
             print("Table not available. Please create table")
         
     #Method to show an specific record
-    def consult_records(self):
+    def consult_records(self):  
+        text_1 = "Validated id: {}"
+        text_2 = "Invalid id: {}"
+        r0 = input("\nInsert id number:")
+        pattern = "[0-9]"
+        headers = ["Name", "Country", "Town", "Rock_type"]
         try:
-            self.connection
-            text_1 = "Validated id: {}"
-            text_2 = "Invalid id: {}"
-            r0 = input("\nInsert id number:")
-            pattern = "[0-9]"
-
             if(re.match(pattern, r0)):
-                print("\n", text_1.format(r0))
-                sql = ("SELECT * FROM parques_de_escalada where id = ?")
-                data = (r0)
-                create_cursor = self.connection.cursor()
-                create_cursor.execute(sql, data)
-                records = create_cursor.fetchall()
-                for row in records:
-                    print("\nName:", row[1])
-                    print("Country:", row[2])
-                    print("Town:", row[3])
-                    print("Rock type", row[4]) 
+                print("-" * 100)
+                print("\n", text_1.format(r0), "\n")
+                for record in ClimbingSchools.select().where(ClimbingSchools.id == r0):
+                    records = [
+                        [record.name,
+                        record.country, record. town,
+                        record.rock_type]
+                    ]
+                    print(tabulate(records, headers, tablefmt="github")) 
             else:
                 print(text_2.format(r0))
         except:
             print("Table not available. Please create table")
+
+    def close_db(self):
+        try:
+            self.close = db.close()
+            print("\nSuccessful disconnection")
+            return self.close
+        except:
+            print("Connection not available")
 
     
     
